@@ -406,6 +406,77 @@
                 </div>
             </div>
 
+            <!-- Section: Pages Build Statistics (Pages 统计) -->
+            <div class="space-y-4">
+                <h2 class="text-xl font-bold tracking-tight text-slate-800 flex items-center gap-2">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    Pages 统计 (Pages Stats)
+                </h2>
+                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <!-- Daily Build Count -->
+                    <div class="rounded-xl border bg-card text-card-foreground shadow-sm">
+                        <div class="p-6 flex flex-row items-center justify-between space-y-0 pb-2">
+                            <h3 class="tracking-tight text-sm font-medium text-muted-foreground">当日构建次数</h3>
+                        </div>
+                        <div class="p-6 pt-0">
+                            <div class="text-2xl font-bold" id="kpi_pages_daily_build">加载中...</div>
+                            <p class="text-xs text-muted-foreground mt-1">Pages 当日构建总次数</p>
+                        </div>
+                    </div>
+                    <!-- Monthly Build Count -->
+                    <div class="rounded-xl border bg-card text-card-foreground shadow-sm">
+                        <div class="p-6 flex flex-row items-center justify-between space-y-0 pb-2">
+                            <h3 class="tracking-tight text-sm font-medium text-muted-foreground">当月构建次数</h3>
+                        </div>
+                        <div class="p-6 pt-0">
+                            <div class="text-2xl font-bold" id="kpi_pages_monthly_build">加载中...</div>
+                            <p class="text-xs text-muted-foreground mt-1">Pages 当月构建总次数</p>
+                        </div>
+                    </div>
+                    <!-- Cloud Functions 24h Requests -->
+                    <div class="rounded-xl border bg-card text-card-foreground shadow-sm">
+                        <div class="p-6 flex flex-row items-center justify-between space-y-0 pb-2">
+                            <h3 class="tracking-tight text-sm font-medium text-muted-foreground">Cloud Functions 24h 请求数</h3>
+                        </div>
+                        <div class="p-6 pt-0">
+                            <div class="text-2xl font-bold" id="kpi_pages_cloud_function_total">加载中...</div>
+                            <p class="text-xs text-muted-foreground mt-1">Cloud Functions 24h 总请求数</p>
+                        </div>
+                    </div>
+                    <!-- Cloud Functions Monthly Requests -->
+                    <div class="rounded-xl border bg-card text-card-foreground shadow-sm">
+                        <div class="p-6 flex flex-row items-center justify-between space-y-0 pb-2">
+                            <h3 class="tracking-tight text-sm font-medium text-muted-foreground">当月 Cloud Functions 请求数</h3>
+                        </div>
+                        <div class="p-6 pt-0">
+                            <div class="text-2xl font-bold" id="kpi_pages_monthly_cf_requests">加载中...</div>
+                            <p class="text-xs text-muted-foreground mt-1">本月累计请求数</p>
+                        </div>
+                    </div>
+                     <!-- Cloud Functions Monthly GBs -->
+                     <div class="rounded-xl border bg-card text-card-foreground shadow-sm">
+                        <div class="p-6 flex flex-row items-center justify-between space-y-0 pb-2">
+                            <h3 class="tracking-tight text-sm font-medium text-muted-foreground">当月 Cloud Functions GBs</h3>
+                        </div>
+                        <div class="p-6 pt-0">
+                            <div class="text-2xl font-bold" id="kpi_pages_monthly_cf_gbs">加载中...</div>
+                            <p class="text-xs text-muted-foreground mt-1">本月累计资源使用量 (GBs)</p>
+                        </div>
+                    </div>
+                </div>
+                <!-- Cloud Function Request Chart -->
+                <div class="grid gap-4 md:grid-cols-1 lg:grid-cols-1">
+                     <div class="rounded-xl border bg-card text-card-foreground shadow-sm">
+                        <div class="flex flex-col space-y-1.5 p-6">
+                            <h3 class="font-semibold leading-none tracking-tight">Cloud Functions 请求数趋势</h3>
+                        </div>
+                        <div class="p-6 pt-0">
+                            <div id="chart_pages_cloud_function_requests" class="w-full h-[350px]"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Section 4: Requests & Performance (请求与性能) -->
             <div class="space-y-4">
                 <h2 class="text-xl font-bold tracking-tight text-slate-800 flex items-center gap-2">
@@ -1306,9 +1377,159 @@
             chartTopMap = echarts.init(document.getElementById('chart_top_map'));
             chartFunctionRequests = echarts.init(document.getElementById('chart_function_requests'));
             chartFunctionCpu = echarts.init(document.getElementById('chart_function_cpu'));
+            chartPagesCloudFunctionRequests = echarts.init(document.getElementById('chart_pages_cloud_function_requests'));
 
             await fetchZones(); // Fetch zones first
             await refreshData();
+        }
+
+        async function fetchPagesBuildStats() {
+             try {
+                // Pages build stats are global, not per zone (usually), or the API handles it.
+                // If it needs zoneId, we might need to pass it.
+                // The current backend implementation just calls DescribePagesResources without params, 
+                // so it likely returns account-level or default zone stats.
+                // However, the user request implied it's a new API. 
+                // Let's assume it doesn't need time range or zoneId for now as per backend implementation.
+                
+                // Get ZoneId if selected
+                const zoneIdElement = document.getElementById('zoneId');
+                const zoneId = zoneIdElement ? zoneIdElement.value : null;
+                const url = zoneId && zoneId !== '*' ? `/api/pages/build-count?zoneId=${zoneId}` : '/api/pages/build-count';
+
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                if (result.parsedResult) {
+                    const { dplDailyCount, dplMonthCount } = result.parsedResult;
+                    document.getElementById('kpi_pages_daily_build').innerText = dplDailyCount !== undefined ? dplDailyCount : '-';
+                    document.getElementById('kpi_pages_monthly_build').innerText = dplMonthCount !== undefined ? dplMonthCount : '-';
+                } else {
+                     document.getElementById('kpi_pages_daily_build').innerText = '-';
+                     document.getElementById('kpi_pages_monthly_build').innerText = '-';
+                }
+
+            } catch (err) {
+                console.error("Error fetching pages build stats:", err);
+                document.getElementById('kpi_pages_daily_build').innerText = 'Error';
+                document.getElementById('kpi_pages_monthly_build').innerText = 'Error';
+            }
+        }
+
+        async function fetchPagesCloudFunctionStats(startTime, endTime) {
+            try {
+                // Get ZoneId if selected
+                const zoneIdElement = document.getElementById('zoneId');
+                const zoneId = zoneIdElement ? zoneIdElement.value : null;
+                
+                let url = zoneId && zoneId !== '*' ? `/api/pages/cloud-function-requests?zoneId=${zoneId}` : '/api/pages/cloud-function-requests';
+                
+                // Add time range params if provided
+                if (startTime && endTime) {
+                    const separator = url.includes('?') ? '&' : '?';
+                    url += `${separator}startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`;
+                }
+
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                // Parsed Result: { Status, Granularity, Timestamps, Values, TotalValue }
+                if (result.parsedResult) {
+                    const { TotalValue, Timestamps, Values } = result.parsedResult;
+                    
+                    // Update KPI
+                    document.getElementById('kpi_pages_cloud_function_total').innerText = TotalValue !== undefined ? TotalValue : '-';
+                    
+                    // Update Chart
+                    if (Timestamps && Values && Timestamps.length > 0) {
+                         const dates = Timestamps.map(ts => {
+                            // Timestamps are in seconds, convert to local string
+                            return new Date(ts * 1000).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+                        });
+
+                        const option = {
+                            tooltip: {
+                                trigger: 'axis'
+                            },
+                            grid: {
+                                left: '3%',
+                                right: '4%',
+                                bottom: '3%',
+                                containLabel: true
+                            },
+                            xAxis: {
+                                type: 'category',
+                                boundaryGap: false,
+                                data: dates
+                            },
+                            yAxis: {
+                                type: 'value'
+                            },
+                            series: [
+                                {
+                                    name: 'Requests',
+                                    type: 'line',
+                                    smooth: true,
+                                    data: Values,
+                                    areaStyle: {
+                                        opacity: 0.1
+                                    },
+                                    itemStyle: {
+                                        color: '#3b82f6'
+                                    }
+                                }
+                            ]
+                        };
+                        chartPagesCloudFunctionRequests.setOption(option);
+                    } else {
+                        chartPagesCloudFunctionRequests.clear();
+                    }
+
+                } else {
+                     document.getElementById('kpi_pages_cloud_function_total').innerText = '-';
+                     chartPagesCloudFunctionRequests.clear();
+                }
+            } catch (err) {
+                console.error("Error fetching pages cloud function stats:", err);
+                document.getElementById('kpi_pages_cloud_function_total').innerText = 'Error';
+                chartPagesCloudFunctionRequests.clear();
+            }
+        }
+
+        async function fetchPagesCloudFunctionMonthlyStats() {
+            try {
+                // Get ZoneId if selected
+                const zoneIdElement = document.getElementById('zoneId');
+                const zoneId = zoneIdElement ? zoneIdElement.value : null;
+                const url = zoneId && zoneId !== '*' ? `/api/pages/cloud-function-monthly-stats?zoneId=${zoneId}` : '/api/pages/cloud-function-monthly-stats';
+                
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                // Expected Result: { parsedResult: { TotalMemDuration: number, TotalInvocation: number } }
+                if (result.parsedResult) {
+                    const { TotalMemDuration, TotalInvocation } = result.parsedResult;
+                    
+                    // Update Requests KPI
+                    document.getElementById('kpi_pages_monthly_cf_requests').innerText = TotalInvocation !== undefined ? TotalInvocation : '-';
+                    
+                    // Update GBs KPI (TotalMemDuration / 1024)
+                    if (TotalMemDuration !== undefined) {
+                        const gbs = (TotalMemDuration / 1024).toFixed(2);
+                        document.getElementById('kpi_pages_monthly_cf_gbs').innerText = gbs;
+                    } else {
+                        document.getElementById('kpi_pages_monthly_cf_gbs').innerText = '-';
+                    }
+
+                } else {
+                     document.getElementById('kpi_pages_monthly_cf_requests').innerText = '-';
+                     document.getElementById('kpi_pages_monthly_cf_gbs').innerText = '-';
+                }
+            } catch (err) {
+                console.error("Error fetching pages cloud function monthly stats:", err);
+                document.getElementById('kpi_pages_monthly_cf_requests').innerText = 'Error';
+                document.getElementById('kpi_pages_monthly_cf_gbs').innerText = 'Error';
+            }
         }
 
         async function refreshData() {
@@ -1335,6 +1556,14 @@
             ];
 
             const results = {};
+            
+            // Start Pages Build Stats fetch (independent)
+            fetchPagesBuildStats();
+            // Start Pages Cloud Function Stats fetch (independent) - Pass time range
+            fetchPagesCloudFunctionStats(startTime, endTime);
+            // Start Pages Cloud Function Monthly Stats fetch (independent)
+            fetchPagesCloudFunctionMonthlyStats();
+
             // Parallel fetch
             await Promise.all(allMetrics.map(async (metric) => {
                 const res = await fetchData(metric);

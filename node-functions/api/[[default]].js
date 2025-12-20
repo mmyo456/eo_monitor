@@ -116,7 +116,7 @@ app.get('/zones', async (req, res) => {
                 secretId: secretId,
                 secretKey: secretKey,
             },
-            region: "",
+            region: "ap-guangzhou",
             profile: {
                 httpProfile: {
                     endpoint: "teo.tencentcloudapi.com",
@@ -136,6 +136,271 @@ app.get('/zones', async (req, res) => {
     }
 });
 
+app.get('/pages/build-count', async (req, res) => {
+    try {
+        const { secretId, secretKey } = getKeys();
+        
+        if (!secretId || !secretKey) {
+            return res.status(500).json({ error: "Missing credentials" });
+        }
+
+        const commonClientConfig = {
+            credential: {
+                secretId: secretId,
+                secretKey: secretKey,
+            },
+            region: "ap-guangzhou",
+            profile: {
+                httpProfile: {
+                    endpoint: "teo.tencentcloudapi.com",
+                },
+            },
+        };
+
+        const client = new CommonClient(
+            "teo.tencentcloudapi.com",
+            "2022-09-01",
+            commonClientConfig
+        );
+
+        // 1. Find ZoneId (Pages usually requires 'default-pages-zone')
+        let targetZoneId = req.query.zoneId;
+
+        if (!targetZoneId) {
+             try {
+                const TeoClient = teo.v20220901.Client;
+                const teoClient = new TeoClient({
+                    credential: { secretId, secretKey },
+                    region: "ap-guangzhou",
+                    profile: { httpProfile: { endpoint: "teo.tencentcloudapi.com" } }
+                });
+                
+                const zonesData = await teoClient.DescribeZones({});
+                if (zonesData && zonesData.Zones) {
+                    const pagesZone = zonesData.Zones.find(z => z.ZoneName === 'default-pages-zone');
+                    if (pagesZone) {
+                        targetZoneId = pagesZone.ZoneId;
+                        console.log(`Found default-pages-zone: ${targetZoneId}`);
+                    } else if (zonesData.Zones.length > 0) {
+                        targetZoneId = zonesData.Zones[0].ZoneId;
+                        console.log(`default-pages-zone not found, using first zone: ${targetZoneId}`);
+                    }
+                }
+             } catch (zErr) {
+                 console.error("Error fetching zones for Pages:", zErr);
+             }
+        }
+
+        if (!targetZoneId) {
+            return res.status(400).json({ error: "Missing ZoneId and could not auto-discover one." });
+        }
+
+        const params = {
+            "Interface": "pages:DescribePagesDeploymentUsage",
+            "Payload": "{}",
+            "ZoneId": targetZoneId
+        };
+        
+        console.log("Calling DescribePagesResources with params:", JSON.stringify(params));
+        const data = await client.request("DescribePagesResources", params);
+        
+        // Parse Result string if present
+        if (data && data.Result) {
+            try {
+                data.parsedResult = JSON.parse(data.Result);
+            } catch (e) {
+                console.error("Error parsing Result JSON:", e);
+            }
+        }
+        
+        res.json(data);
+    } catch (err) {
+        console.error("Error calling DescribePagesResources:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/pages/cloud-function-requests', async (req, res) => {
+    try {
+        const { secretId, secretKey } = getKeys();
+        
+        if (!secretId || !secretKey) {
+            return res.status(500).json({ error: "Missing credentials" });
+        }
+
+        const commonClientConfig = {
+            credential: {
+                secretId: secretId,
+                secretKey: secretKey,
+            },
+            region: "ap-guangzhou",
+            profile: {
+                httpProfile: {
+                    endpoint: "teo.tencentcloudapi.com",
+                },
+            },
+        };
+
+        const client = new CommonClient(
+            "teo.tencentcloudapi.com",
+            "2022-09-01",
+            commonClientConfig
+        );
+
+        // 1. Find ZoneId
+        let targetZoneId = req.query.zoneId;
+        const { startTime, endTime } = req.query;
+
+        if (!targetZoneId) {
+             try {
+                const TeoClient = teo.v20220901.Client;
+                const teoClient = new TeoClient({
+                    credential: { secretId, secretKey },
+                    region: "ap-guangzhou",
+                    profile: { httpProfile: { endpoint: "teo.tencentcloudapi.com" } }
+                });
+                
+                const zonesData = await teoClient.DescribeZones({});
+                if (zonesData && zonesData.Zones) {
+                    const pagesZone = zonesData.Zones.find(z => z.ZoneName === 'default-pages-zone');
+                    if (pagesZone) {
+                        targetZoneId = pagesZone.ZoneId;
+                        console.log(`Found default-pages-zone: ${targetZoneId}`);
+                    } else if (zonesData.Zones.length > 0) {
+                        targetZoneId = zonesData.Zones[0].ZoneId;
+                        console.log(`default-pages-zone not found, using first zone: ${targetZoneId}`);
+                    }
+                }
+             } catch (zErr) {
+                 console.error("Error fetching zones for Pages:", zErr);
+             }
+        }
+
+        if (!targetZoneId) {
+            return res.status(400).json({ error: "Missing ZoneId and could not auto-discover one." });
+        }
+
+        const payload = {
+            ZoneId: targetZoneId,
+            Interval: "hour"
+        };
+        
+        if (startTime) payload.StartTime = startTime;
+        if (endTime) payload.EndTime = endTime;
+
+        const params = {
+            "ZoneId": targetZoneId,
+            "Interface": "pages:DescribePagesFunctionsRequestDataByZone",
+            "Payload": JSON.stringify(payload)
+        };
+        
+        console.log("Calling DescribePagesResources (CloudFunction) with params:", JSON.stringify(params));
+        const data = await client.request("DescribePagesResources", params);
+        
+        // Parse Result string if present
+        if (data && data.Result) {
+            try {
+                data.parsedResult = JSON.parse(data.Result);
+            } catch (e) {
+                console.error("Error parsing Result JSON:", e);
+            }
+        }
+        
+        res.json(data);
+    } catch (err) {
+        console.error("Error calling DescribePagesResources for CloudFunction:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/pages/cloud-function-monthly-stats', async (req, res) => {
+    try {
+        const { secretId, secretKey } = getKeys();
+        
+        if (!secretId || !secretKey) {
+            return res.status(500).json({ error: "Missing credentials" });
+        }
+
+        const commonClientConfig = {
+            credential: {
+                secretId: secretId,
+                secretKey: secretKey,
+            },
+            region: "ap-guangzhou",
+            profile: {
+                httpProfile: {
+                    endpoint: "teo.tencentcloudapi.com",
+                },
+            },
+        };
+
+        const client = new CommonClient(
+            "teo.tencentcloudapi.com",
+            "2022-09-01",
+            commonClientConfig
+        );
+
+        // 1. Find ZoneId
+        let targetZoneId = req.query.zoneId;
+
+        if (!targetZoneId) {
+             try {
+                const TeoClient = teo.v20220901.Client;
+                const teoClient = new TeoClient({
+                    credential: { secretId, secretKey },
+                    region: "ap-guangzhou",
+                    profile: { httpProfile: { endpoint: "teo.tencentcloudapi.com" } }
+                });
+                
+                const zonesData = await teoClient.DescribeZones({});
+                if (zonesData && zonesData.Zones) {
+                    const pagesZone = zonesData.Zones.find(z => z.ZoneName === 'default-pages-zone');
+                    if (pagesZone) {
+                        targetZoneId = pagesZone.ZoneId;
+                        console.log(`Found default-pages-zone: ${targetZoneId}`);
+                    } else if (zonesData.Zones.length > 0) {
+                        targetZoneId = zonesData.Zones[0].ZoneId;
+                        console.log(`default-pages-zone not found, using first zone: ${targetZoneId}`);
+                    }
+                }
+             } catch (zErr) {
+                 console.error("Error fetching zones for Pages:", zErr);
+             }
+        }
+
+        if (!targetZoneId) {
+            return res.status(400).json({ error: "Missing ZoneId and could not auto-discover one." });
+        }
+
+        const payload = {
+            ZoneId: targetZoneId,
+        };
+
+        const params = {
+            "ZoneId": targetZoneId,
+            "Interface": "pages:DescribeHistoryCloudFunctionStats",
+            "Payload": JSON.stringify(payload)
+        };
+        
+        console.log("Calling DescribePagesResources (CloudFunction Monthly) with params:", JSON.stringify(params));
+        const data = await client.request("DescribePagesResources", params);
+        
+        // Parse Result string if present
+        if (data && data.Result) {
+            try {
+                data.parsedResult = JSON.parse(data.Result);
+            } catch (e) {
+                console.error("Error parsing Result JSON:", e);
+            }
+        }
+        
+        res.json(data);
+    } catch (err) {
+        console.error("Error calling DescribePagesResources for CloudFunction Monthly:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.get('/traffic', async (req, res) => {
     try {
         const { secretId, secretKey } = getKeys();
@@ -150,7 +415,7 @@ app.get('/traffic', async (req, res) => {
                 secretId: secretId,
                 secretKey: secretKey,
             },
-            region: "",
+            region: "ap-guangzhou",
             profile: {
                 httpProfile: {
                     endpoint: "teo.tencentcloudapi.com",
@@ -208,7 +473,7 @@ app.get('/traffic', async (req, res) => {
                     secretId: secretId,
                     secretKey: secretKey,
                 },
-                region: "",
+                region: "ap-guangzhou",
                 profile: {
                     httpProfile: {
                         endpoint: "teo.tencentcloudapi.com",
@@ -251,7 +516,7 @@ app.get('/traffic', async (req, res) => {
                     secretId: secretId,
                     secretKey: secretKey,
                 },
-                region: "",
+                region: "ap-guangzhou",
                 profile: {
                     httpProfile: {
                         endpoint: "teo.tencentcloudapi.com",
